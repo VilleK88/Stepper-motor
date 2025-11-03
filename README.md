@@ -19,7 +19,7 @@ Implement a program that reads commands from standard input. The commands to imp
     o Is it calibrated?  
     o Number of steps per revolution or “not available” if not calibrated  
   • calib – perform calibration  
-  o Calibration should run the motor in one direction until a falling edge is seen in the opto fork  
+    o Calibration should run the motor in one direction until a falling edge is seen in the opto fork  
     input and then count number of steps to the next falling edge. To get more accurate results  
     count the number of steps per revolution three times and take the average of the values.  
   • run N – N is an integer that may be omitted. Runs the motor N times 1/8th of a revolution. If N is  

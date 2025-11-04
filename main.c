@@ -29,10 +29,8 @@ void run_motor(const uint *coil_pins, const int half_step[8][4], int count, int 
 char *handle_input();
 bool get_input(char *user_input);
 void trim_line(char *user_input);
-bool cmp_strings(const char *user_input, const char *cmp_value);
 bool check_if_nums(const char *string);
 int get_nums_from_a_string(const char *string);
-void trim_run_input(const char *user_input, char *word_out);
 bool validate_run_input(const char *user_input);
 
 int main() {
@@ -62,7 +60,7 @@ int main() {
     while (true) {
         const char *user_input = handle_input();
 
-        if (cmp_strings(user_input, "status")) {
+        if (strcmp(user_input, "status") == 0) {
             if (revolution_steps[0] == 0) {
                 printf("Not available\r\n");
             }
@@ -70,25 +68,20 @@ int main() {
                 printf("Steps per revolution: %d\r\n", steps_per_rev);
             }
         }
-        else if (cmp_strings(user_input, "calib")) {
+        else if (strcmp(user_input, "calib") == 0) {
             // Run calibration to measure average steps per revolution
             const int avg = calibrate(coil_pins, half_step, safe_max, revolution_steps);
             steps_per_rev = avg;
             printf("Calibration completed\r\n");
         }
-
-        char word_out[4];
-        trim_run_input(user_input, word_out);
-
-        if (cmp_strings(word_out, "run")) {
+        else if (strncmp(user_input, "run", 3) == 0) {
             if (validate_run_input(user_input)) {
                 const int num_out = get_nums_from_a_string(user_input + 4);
                 if (num_out > 0)
                     run_motor(coil_pins, half_step, num_out, steps_per_rev);
             }
             else if (strlen(user_input) == 3) {
-                if (strlen(user_input) == strlen(word_out))
-                    run_motor(coil_pins, half_step, 8, steps_per_rev);
+                run_motor(coil_pins, half_step, 8, steps_per_rev);
             }
         }
     }
@@ -225,12 +218,6 @@ void trim_line(char *user_input) {
     }
 }
 
-bool cmp_strings(const char *user_input, const char *cmp_value) {
-    if (strcmp(user_input, cmp_value) == 0)
-        return true;
-    return false;
-}
-
 bool check_if_nums(const char *string) {
     const int len = (int)strlen(string);
     for (int i = 0; i < len; i++) {
@@ -259,11 +246,6 @@ int get_nums_from_a_string(const char *string) {
         }
     }
     return 0;
-}
-
-void trim_run_input(const char *user_input, char *word_out) {
-    memcpy(word_out, user_input, 3);
-    word_out[3] = '\0';
 }
 
 bool validate_run_input(const char *user_input) {

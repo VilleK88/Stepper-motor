@@ -6,9 +6,6 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#define CLK_DIV 125 // PWM clock divider
-#define TOP 999 // PWM counter top value
-
 // Stepper motor control pins
 #define IN1 2
 #define IN2 3
@@ -28,11 +25,11 @@ void ini_sensor(); // Initialize optical sensor input
 int calibrate(const uint *coil_pins, const int half_step[8][4], int max, int revolution_steps[3]); // Measure steps per revolution using the optical sensor
 void step_motor(const uint *coil_pins, int step, const int half_step[8][4]); // Perform one half-step
 int get_avg(const int revolution_steps[3]); // Calculate average of three edge intervals
-void run_motor(const uint *coil_pins, const int half_step[8][4], int count);
+void run_motor(const uint *coil_pins, const int half_step[8][4], int count, int steps_per_rev);
 char *handle_input();
 bool get_input(char *user_input);
 void trim_line(char *user_input);
-bool compare(const char *user_input, const char *cmp_value);
+bool cmp_strings(const char *user_input, const char *cmp_value);
 bool check_if_nums(const char *string);
 int get_nums_from_a_string(const char *string);
 void trim_run_input(const char *user_input, char *word_out);
@@ -41,6 +38,7 @@ bool validate_run_input(const char *user_input);
 int main() {
     const uint coil_pins[] = {IN1, IN2, IN3, IN4};
     const int safe_max = 20480; // Safety limit: 5 * 4096
+    int steps_per_rev = 4096;
     int revolution_steps[3] = {0, 0, 0}; // Array to store step counts between four consecutive edges
     // Half-step sequence for unipolar stepper motor
     const int half_step[8][4] = {
@@ -64,38 +62,33 @@ int main() {
     while (true) {
         const char *user_input = handle_input();
 
-        if (compare(user_input, "calib")) {
-            // Run calibration to measure average steps per revolution
-            const int result = calibrate(coil_pins, half_step, safe_max, revolution_steps);
-            if (result > 0) {
-                printf("Calibration completed.\r\n");
-                printf("Average: %d\r\n", result);
-            }
-            else
-                printf("Calibration failed.\n\r");
-        }
-        else if (compare(user_input, "status")) {
+        if (cmp_strings(user_input, "status")) {
             if (revolution_steps[0] == 0) {
                 printf("Not available\r\n");
             }
             else {
-                for (int i = 0; i < 3; i++) {
-                    printf("%d. revolution: %d\r\n", i+1, revolution_steps[i]);
-                }
+                printf("Steps per revolution: %d\r\n", steps_per_rev);
             }
+        }
+        else if (cmp_strings(user_input, "calib")) {
+            // Run calibration to measure average steps per revolution
+            const int avg = calibrate(coil_pins, half_step, safe_max, revolution_steps);
+            steps_per_rev = avg;
+            printf("Calibration completed\r\n");
         }
 
         char word_out[4];
         trim_run_input(user_input, word_out);
 
-        if (compare(word_out, "run")) {
+        if (cmp_strings(word_out, "run")) {
             if (validate_run_input(user_input)) {
                 const int num_out = get_nums_from_a_string(user_input + 4);
-                run_motor(coil_pins, half_step, num_out);
+                if (num_out > 0)
+                    run_motor(coil_pins, half_step, num_out, steps_per_rev);
             }
             else if (strlen(user_input) == 3) {
                 if (strlen(user_input) == strlen(word_out))
-                    run_motor(coil_pins, half_step, 8);
+                    run_motor(coil_pins, half_step, 8, steps_per_rev);
             }
         }
     }
@@ -187,8 +180,9 @@ int get_avg(const int revolution_steps[3]) {
     return avg;
 }
 
-void run_motor(const uint *coil_pins, const int half_step[8][4], const int count) {
-    const int i_count = count * 512;  // 4096 / 8 = 512
+void run_motor(const uint *coil_pins, const int half_step[8][4], const int count, int steps_per_rev) {
+    //const int i_count = count * 512;  // 4096 / 8 = 512
+    const int i_count = count * (steps_per_rev / 8);
     for (int i = 0; i < i_count; i++) {
         step_motor(coil_pins, i, half_step);
         sleep_ms(3);
@@ -231,7 +225,7 @@ void trim_line(char *user_input) {
     }
 }
 
-bool compare(const char *user_input, const char *cmp_value) {
+bool cmp_strings(const char *user_input, const char *cmp_value) {
     if (strcmp(user_input, cmp_value) == 0)
         return true;
     return false;
@@ -248,19 +242,21 @@ bool check_if_nums(const char *string) {
 }
 
 int get_nums_from_a_string(const char *string) {
-    const int len = (int)strlen(string);
-    char num_char[len + 1];
-    int j = 0;
+    if (string[0] != '0') {
+        const int len = (int)strlen(string);
+        char num_char[len + 1];
+        int j = 0;
 
-    for (int i = 0; i < len; i++) {
-        if (isdigit((unsigned)string[i])) {
-            num_char[j++] = string[i];
+        for (int i = 0; i < len; i++) {
+            if (isdigit((unsigned)string[i])) {
+                num_char[j++] = string[i];
+            }
         }
-    }
 
-    if (j > 0) {
-        num_char[j] = '\0';
-        return atoi(num_char);
+        if (j > 0) {
+            num_char[j] = '\0';
+            return atoi(num_char);
+        }
     }
     return 0;
 }
@@ -271,7 +267,7 @@ void trim_run_input(const char *user_input, char *word_out) {
 }
 
 bool validate_run_input(const char *user_input) {
-    if (strlen(user_input) >= 4 && check_if_nums(user_input + 4))
+    if (strlen(user_input) >= 4 && check_if_nums(user_input + 4) && user_input[3] == ' ')
         return true;
     return false;
 }

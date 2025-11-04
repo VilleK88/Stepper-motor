@@ -2,6 +2,7 @@
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
 #include <stdbool.h>
+#include <string.h>
 
 #define CLK_DIV 125 // PWM clock divider
 #define TOP 999 // PWM counter top value
@@ -16,16 +17,22 @@
 // Optical sensor input with pull-up
 #define SENSOR 28
 
+#define INPUT_LENGTH 200
+
 void ini_coil_pins(const uint *ins); // Initialize motor output pins
 void ini_sensor(); // Initialize optical sensor input
 int calibrate(const uint *ins, const int half_step[8][4], int max, int revolution_steps[3]); // Measure steps per revolution using the optical sensor
 void step_motor(const uint *ins, int step, const int half_step[8][4]); // Perform one half-step
 int get_avg(const int revolution_steps[3]); // Calculate average of three edge intervals
+char *handle_input();
+bool get_input(char *user_input);
+void trim_line(char *user_input);
+bool compare(const char *input, const char *cmd);
 
 int main() {
     const uint coil_pins[] = {IN1, IN2, IN3, IN4};
     const int safe_max = 20480; // Safety limit: 5 * 4096
-    int revolution_steps[3]; // Array to store step counts between four consecutive edges
+    int revolution_steps[3] = {0, 0, 0}; // Array to store step counts between four consecutive edges
     // Half-step sequence for unipolar stepper motor
     const int half_step[8][4] = {
         {1, 0, 0, 0}, // Step 1: A
@@ -45,15 +52,30 @@ int main() {
     // Initialize optical sensor input (with internal pull-up)
     ini_sensor();
 
-    // Run calibration to measure average steps per revolution
-    const int result = calibrate(coil_pins, half_step, safe_max, revolution_steps);
-    if (result > 0) {
-        printf("Calibration completed.\r\n");
-        printf("Average: %d\r\n", result);
+    while (true) {
+        const char *user_input = handle_input();
+
+        if (compare(user_input, "calib")) {
+            // Run calibration to measure average steps per revolution
+            const int result = calibrate(coil_pins, half_step, safe_max, revolution_steps);
+            if (result > 0) {
+                printf("Calibration completed.\r\n");
+                printf("Average: %d\r\n", result);
+            }
+            else
+                printf("Calibration failed.\n\r");
+        }
+        else if (compare(user_input, "status")) {
+            if (revolution_steps[0] == 0) {
+                printf("Not available\r\n");
+            }
+            else {
+                for (int i = 0; i < 3; i++) {
+                    printf("%d. revolution: %d\r\n", i+1, revolution_steps[i]);
+                }
+            }
+        }
     }
-    else
-        printf("Calibration failed.\n\r");
-    return 0;
 }
 
 void ini_coil_pins(const uint *ins) {
@@ -140,4 +162,44 @@ int get_avg(const int revolution_steps[3]) {
     }
     const int avg = sum / 3;
     return avg;
+}
+
+char *handle_input() {
+    static char string[INPUT_LENGTH];
+    bool stop_loop = false;
+    while (!stop_loop) {
+        printf("Enter cmd: ");
+        fflush(stdout);
+        stop_loop = get_input(string);
+    }
+    return string;
+}
+
+bool get_input(char *user_input) {
+    if(fgets(user_input, INPUT_LENGTH, stdin)) {
+        if (strchr(user_input, '\n') == NULL) {
+            int c = 0;
+            while ((c = getchar()) != '\n' && c != EOF) {}
+            printf("Input too long (max %d characters).\r\n", INPUT_LENGTH-2);
+            return false;
+        }
+        trim_line(user_input);
+        if (user_input[0] == '\0') {
+            printf("Empty input.\r\n");
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+void trim_line(char *user_input) {
+    int len = (int)strlen(user_input);
+    while (len > 0 && (user_input[len - 1] == '\n' || user_input[len - 1] == '\r')) {
+        user_input[--len] = '\0';
+    }
+}
+
+bool compare(const char *input, const char *cmd) {
+    return strcmp(input, cmd) == 0;
 }

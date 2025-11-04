@@ -21,6 +21,8 @@
 
 #define INPUT_LENGTH 200
 
+typedef enum {status, calib, run} cmd;
+
 void ini_coil_pins(const uint *coil_pins); // Initialize motor output pins
 void ini_sensor(); // Initialize optical sensor input
 int calibrate(const uint *coil_pins, const int half_step[8][4], int max, int revolution_steps[3]); // Measure steps per revolution using the optical sensor
@@ -33,6 +35,8 @@ void trim_line(char *user_input);
 bool compare(const char *user_input, const char *cmp_value);
 bool check_if_nums(const char *string);
 int get_nums_from_a_string(const char *string);
+void trim_run_input(const char *user_input, char *word_out);
+bool validate_run_input(const char *user_input);
 
 int main() {
     const uint coil_pins[] = {IN1, IN2, IN3, IN4};
@@ -82,16 +86,12 @@ int main() {
         }
 
         char word_out[4];
-        memcpy(word_out, user_input, 3);
-        word_out[3] = '\0';
+        trim_run_input(user_input, word_out);
+
         if (compare(word_out, "run")) {
-            printf("Run works\r\n");
-            if (strlen(user_input) >= 4) {
-                if (check_if_nums(user_input + 4)) {
-                    const int num_out = get_nums_from_a_string(user_input + 4);
-                    printf("Num out: %d\r\n", num_out);
-                    run_motor(coil_pins, half_step, num_out);
-                }
+            if (validate_run_input(user_input)) {
+                const int num_out = get_nums_from_a_string(user_input + 4);
+                run_motor(coil_pins, half_step, num_out);
             }
             else if (strlen(user_input) == 3) {
                 if (strlen(user_input) == strlen(word_out))
@@ -263,4 +263,15 @@ int get_nums_from_a_string(const char *string) {
         return atoi(num_char);
     }
     return 0;
+}
+
+void trim_run_input(const char *user_input, char *word_out) {
+    memcpy(word_out, user_input, 3);
+    word_out[3] = '\0';
+}
+
+bool validate_run_input(const char *user_input) {
+    if (strlen(user_input) >= 4 && check_if_nums(user_input + 4))
+        return true;
+    return false;
 }

@@ -3,6 +3,8 @@
 #include "hardware/pwm.h"
 #include <stdbool.h>
 #include <string.h>
+#include <ctype.h>
+#include <stdlib.h>
 
 #define CLK_DIV 125 // PWM clock divider
 #define TOP 999 // PWM counter top value
@@ -19,15 +21,18 @@
 
 #define INPUT_LENGTH 200
 
-void ini_coil_pins(const uint *ins); // Initialize motor output pins
+void ini_coil_pins(const uint *coil_pins); // Initialize motor output pins
 void ini_sensor(); // Initialize optical sensor input
-int calibrate(const uint *ins, const int half_step[8][4], int max, int revolution_steps[3]); // Measure steps per revolution using the optical sensor
-void step_motor(const uint *ins, int step, const int half_step[8][4]); // Perform one half-step
+int calibrate(const uint *coil_pins, const int half_step[8][4], int max, int revolution_steps[3]); // Measure steps per revolution using the optical sensor
+void step_motor(const uint *coil_pins, int step, const int half_step[8][4]); // Perform one half-step
 int get_avg(const int revolution_steps[3]); // Calculate average of three edge intervals
+void run_motor(const uint *coil_pins, const int half_step[8][4], int count);
 char *handle_input();
 bool get_input(char *user_input);
 void trim_line(char *user_input);
-bool compare(const char *input, const char *cmd);
+bool compare(const char *user_input, const char *cmp_value);
+bool check_if_nums(const char *string);
+int get_nums_from_a_string(const char *string);
 
 int main() {
     const uint coil_pins[] = {IN1, IN2, IN3, IN4};
@@ -75,15 +80,33 @@ int main() {
                 }
             }
         }
+
+        char word_out[4];
+        memcpy(word_out, user_input, 3);
+        word_out[3] = '\0';
+        if (compare(word_out, "run")) {
+            printf("Run works\r\n");
+            if (strlen(user_input) >= 4) {
+                if (check_if_nums(user_input + 4)) {
+                    const int num_out = get_nums_from_a_string(user_input + 4);
+                    printf("Num out: %d\r\n", num_out);
+                    run_motor(coil_pins, half_step, num_out);
+                }
+            }
+            else if (strlen(user_input) == 3) {
+                if (strlen(user_input) == strlen(word_out))
+                    run_motor(coil_pins, half_step, 8);
+            }
+        }
     }
 }
 
-void ini_coil_pins(const uint *ins) {
+void ini_coil_pins(const uint *coil_pins) {
     for (int i = 0; i < INS_SIZE; i++) {
-        gpio_init(ins[i]);
-        gpio_set_dir(ins[i], GPIO_OUT);
+        gpio_init(coil_pins[i]);
+        gpio_set_dir(coil_pins[i], GPIO_OUT);
         // Ensure all coils are off at startup
-        gpio_put(ins[i], 0);
+        gpio_put(coil_pins[i], 0);
     }
 }
 
@@ -94,7 +117,7 @@ void ini_sensor() {
     gpio_pull_up(SENSOR);
 }
 
-int calibrate(const uint *ins, const int half_step[8][4], const int max, int revolution_steps[3]) {
+int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, int revolution_steps[3]) {
     int count = 0; // Number of detected falling edges
     int step = 0; // Global step counter
     int edge_step = 0; // Steps between consecutive edges (starts after first edge)
@@ -104,7 +127,7 @@ int calibrate(const uint *ins, const int half_step[8][4], const int max, int rev
 
     do {
         // Advance the motor by one half-step
-        step_motor(ins, step, half_step);
+        step_motor(coil_pins, step, half_step);
         sleep_ms(3);
         step++;
 
@@ -142,7 +165,7 @@ int calibrate(const uint *ins, const int half_step[8][4], const int max, int rev
     return 0; // Calibration failed
 }
 
-void step_motor(const uint *ins, const int step, const int half_step[8][4]) {
+void step_motor(const uint *coil_pins, const int step, const int half_step[8][4]) {
     // Determines which step phase (0–7) the motor is currently in
     // Bitwise AND preserves only the three lowest bits.
     // This means that phase is always between 0 and 7.
@@ -151,7 +174,7 @@ void step_motor(const uint *ins, const int step, const int half_step[8][4]) {
     // defining which coils (IN1–IN4) are energized at this moment.
     const int phase = step & 7;
     for (int i = 0; i < INS_SIZE; i++) {
-        gpio_put(ins[i], half_step[phase][i]);
+        gpio_put(coil_pins[i], half_step[phase][i]);
     }
 }
 
@@ -162,6 +185,14 @@ int get_avg(const int revolution_steps[3]) {
     }
     const int avg = sum / 3;
     return avg;
+}
+
+void run_motor(const uint *coil_pins, const int half_step[8][4], const int count) {
+    const int i_count = count * 512;  // 4096 / 8 = 512
+    for (int i = 0; i < i_count; i++) {
+        step_motor(coil_pins, i, half_step);
+        sleep_ms(3);
+    }
 }
 
 char *handle_input() {
@@ -200,6 +231,36 @@ void trim_line(char *user_input) {
     }
 }
 
-bool compare(const char *input, const char *cmd) {
-    return strcmp(input, cmd) == 0;
+bool compare(const char *user_input, const char *cmp_value) {
+    if (strcmp(user_input, cmp_value) == 0)
+        return true;
+    return false;
+}
+
+bool check_if_nums(const char *string) {
+    const int len = (int)strlen(string);
+    for (int i = 0; i < len; i++) {
+        if (!isdigit((unsigned char)string[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int get_nums_from_a_string(const char *string) {
+    const int len = (int)strlen(string);
+    char num_char[len + 1];
+    int j = 0;
+
+    for (int i = 0; i < len; i++) {
+        if (isdigit((unsigned)string[i])) {
+            num_char[j++] = string[i];
+        }
+    }
+
+    if (j > 0) {
+        num_char[j] = '\0';
+        return atoi(num_char);
+    }
+    return 0;
 }

@@ -71,8 +71,12 @@ int main() {
         else if (strcmp(user_input, "calib") == 0) {
             // Run calibration to measure average steps per revolution
             const int avg = calibrate(coil_pins, half_step, safe_max, revolution_steps);
-            steps_per_rev = avg;
-            printf("Calibration completed\r\n");
+            if (avg > 0) {
+                steps_per_rev = avg;
+                printf("Calibration completed\r\n");
+            }
+            else
+                printf("Calibration failed\r\n");
         }
         else if (strncmp(user_input, "run", 3) == 0) {
             if (validate_run_input(user_input)) {

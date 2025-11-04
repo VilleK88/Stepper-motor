@@ -13,12 +13,9 @@
 #define IN4 13
 #define INS_SIZE 4
 
-// Optical sensor input with pull-up
-#define SENSOR 28
+#define SENSOR 28 // Optical sensor input with pull-up
 
-#define INPUT_LENGTH 200
-
-typedef enum {status, calib, run} cmd;
+#define INPUT_LENGTH 200 // Maximum input line length
 
 void ini_coil_pins(const uint *coil_pins); // Initialize motor output pins
 void ini_sensor(); // Initialize optical sensor input

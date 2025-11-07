@@ -66,10 +66,12 @@ int main() {
         if (strcmp(user_input, "status") == 0) {
             if (revolution_steps[0] == 0) {
                 // Calibration not yet performed
+                printf("Calibrated: no\r\n");
                 printf("Not available\r\n");
             }
             else {
                 // Calibration completed, display step count per revolution
+                printf("Calibrated: yes\r\n");
                 printf("Steps per revolution: %d\r\n", steps_per_rev);
             }
         }
@@ -141,10 +143,10 @@ int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, i
             edge_step++;
 
         const bool sensor_state = gpio_get(SENSOR);
-        // Detect falling edge: HIGH → LOW transition (no obstacle → obstacle)
+        // Detect falling edge: HIGH -> LOW transition (no obstacle -> obstacle)
         if (prev_state && !sensor_state) {
             if (!first_edge_found) {
-                // First falling edge — start counting after this point
+                // First falling edge - start counting after this point
                 printf("First low edge found\r\n");
                 first_edge_found = true;
             }
@@ -175,7 +177,7 @@ void step_motor(const uint *coil_pins, const int step, const int half_step[8][4]
     // Determines which step phase (0–7) the motor is currently in
     // Bitwise AND preserves only the three lowest bits.
     // This means that phase is always between 0 and 7.
-    // As step increases, phase cycles through 0–7 → 0–7 → 0–7…
+    // As step increases, phase cycles through 0–7 -> 0–7 -> 0–7…
     // Each phase corresponds to one row in half_step[8][4]
     // defining which coils (IN1–IN4) are energized at this moment.
     const int phase = step & 7;
@@ -193,7 +195,7 @@ int get_avg(const int revolution_steps[3]) {
     return avg;
 }
 
-void run_motor(const uint *coil_pins, const int half_step[8][4], const int count, int steps_per_rev) {
+void run_motor(const uint *coil_pins, const int half_step[8][4], const int count, const int steps_per_rev) {
     // Calculate total number of half-steps:
     const int i_count = count * (steps_per_rev / 8);
     for (int i = 0; i < i_count; i++) {
@@ -218,7 +220,7 @@ char *handle_input() {
 bool get_input(char *user_input) {
     // Read one line from stdin
     if(fgets(user_input, INPUT_LENGTH, stdin)) {
-        // If no newline found, input exceeded buffer size → discard remainder
+        // If no newline found, input exceeded buffer size -> discard remainder
         if (strchr(user_input, '\n') == NULL) {
             int c = 0;
             while ((c = getchar()) != '\n' && c != EOF) {}
@@ -274,7 +276,7 @@ int get_nums_from_a_string(const char *string) {
             return atoi(num_char);
         }
     }
-    return 0; // No valid number found → return 0
+    return 0; // If no valid number found return 0
 }
 
 bool validate_run_input(const char *user_input) {

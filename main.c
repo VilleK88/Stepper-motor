@@ -36,6 +36,7 @@ int main() {
     // Safety limit to prevent infinite rotation during calibration
     const int safe_max = 20480; // Safety limit: 5 * 4096 steps
     int steps_per_rev = 4096; // Default steps per revolution before calibration
+    int avg = 0;
     int revolution_steps[3] = {0, 0, 0}; // Array to store step counts between four consecutive edges
 
     // Half-step sequence for unipolar stepper motor
@@ -64,21 +65,21 @@ int main() {
 
         // status command: print system state
         if (strcmp(user_input, "status") == 0) {
-            if (revolution_steps[0] == 0) {
-                // Calibration not yet performed
-                printf("Calibrated: no\r\n");
-                printf("Not available\r\n");
-            }
-            else {
+            if (avg > 0) {
                 // Calibration completed, display step count per revolution
                 printf("Calibrated: yes\r\n");
                 printf("Steps per revolution: %d\r\n", steps_per_rev);
+            }
+            else {
+                // Calibration not yet performed
+                printf("Calibrated: no\r\n");
+                printf("Not available\r\n");
             }
         }
         // calib command: perform calibration
         else if (strcmp(user_input, "calib") == 0) {
             // Run calibration and compute average from 3 rotations
-            const int avg = calibrate(coil_pins, half_step, safe_max, revolution_steps);
+            avg = calibrate(coil_pins, half_step, safe_max, revolution_steps);
             if (avg > 0) {
                 // Update step count per revolution
                 steps_per_rev = avg;

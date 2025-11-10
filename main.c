@@ -29,6 +29,7 @@ void trim_line(char *user_input); // Remove '\n' and '\r' characters from the en
 bool check_if_nums(const char *string); // Return true if the string contains only digits (0–9)
 int get_nums_from_a_string(const char *string); // Extract digits from a string, form an integer (rejects leading zeros)
 bool validate_run_input(const char *user_input); // Validate that "run" command has a proper numeric argument ("run N")
+void invalid_input();
 
 int main() {
     // Stepper motor coil pins
@@ -103,7 +104,7 @@ int main() {
                     if (num_out > 0)
                         run_motor(coil_pins, half_step, num_out, steps_per_rev, &current_step);
                     else
-                        printf("Invalid input\r\n");
+                        invalid_input();
                 }
                 // If command is plain "run" → rotate one full revolution (8 * 1/8)
                 else if (strlen(user_input) == 3) {
@@ -113,10 +114,8 @@ int main() {
             else
                 printf("Calibrate first\r\n");
         }
-        else {
-            printf("Invalid input\r\n");
-            printf("Allowed commands: status, calib, run N\r\n");
-        }
+        else
+            invalid_input();
     }
 }
 
@@ -299,4 +298,9 @@ bool validate_run_input(const char *user_input) {
     if (strlen(user_input) >= 4 && check_if_nums(user_input + 4) && user_input[3] == ' ')
         return true;
     return false;
+}
+
+void invalid_input() {
+    printf("Invalid input\r\n");
+    printf("Allowed commands: status, calib, run N\r\n");
 }

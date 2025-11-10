@@ -108,9 +108,13 @@ int main() {
                     run_motor(coil_pins, half_step, 8, steps_per_rev, &current_step);
                 }
             }
+            else
+                printf("Calibrate first\r\n");
         }
-        else
+        else {
             printf("Invalid input\r\n");
+            printf("Allowed commands: status, calib, run N\r\n");
+        }
     }
 }
 

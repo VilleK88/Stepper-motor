@@ -19,10 +19,10 @@
 
 void ini_coil_pins(const uint *coil_pins); // Initialize motor coil output pins as outputs
 void ini_sensor(); // Initialize optical sensor input with internal pull-up
-int calibrate(const uint *coil_pins, const int half_step[8][4], int max, int revolution_steps[3]); // Measure steps per revolution using the optical sensor
+int calibrate(const uint *coil_pins, const int half_step[8][4], int max, int revolution_steps[3], int *current_step); // Measure steps per revolution using the optical sensor
 void step_motor(const uint *coil_pins, int step, const int half_step[8][4]); // Perform one half-step of the stepper motor
 int get_avg(const int revolution_steps[3]); // Calculate the average of three revolution step counts
-void run_motor(const uint *coil_pins, const int half_step[8][4], int count, int steps_per_rev); // Run the motor for N * (1/8) revolutions using the calibrated steps per revolution
+void run_motor(const uint *coil_pins, const int half_step[8][4], int count, int steps_per_rev, int *current_step); // Run the motor for N * (1/8) revolutions using the calibrated steps per revolution
 char *handle_input(); // Read a single non-empty command from user input
 bool get_input(char *user_input); // Read a line from stdin, validate it, and remove newline characters
 void trim_line(char *user_input); // Remove '\n' and '\r' characters from the end of a string
@@ -36,6 +36,7 @@ int main() {
     // Safety limit to prevent infinite rotation during calibration
     const int safe_max = 20480; // Safety limit: 5 * 4096 steps
     int steps_per_rev = 4096; // Default steps per revolution before calibration
+    int current_step = 0;
     int avg = 0;
     int revolution_steps[3] = {0, 0, 0}; // Array to store step counts between four consecutive edges
 
@@ -69,6 +70,7 @@ int main() {
                 // Calibration completed, display step count per revolution
                 printf("Calibrated: yes\r\n");
                 printf("Steps per revolution: %d\r\n", steps_per_rev);
+                printf("Current step:%d\r\n", current_step);
             }
             else {
                 // Calibration not yet performed
@@ -79,7 +81,7 @@ int main() {
         // calib command: perform calibration
         else if (strcmp(user_input, "calib") == 0) {
             // Run calibration and compute average from 3 rotations
-            avg = calibrate(coil_pins, half_step, safe_max, revolution_steps);
+            avg = calibrate(coil_pins, half_step, safe_max, revolution_steps, &current_step);
             if (avg > 0) {
                 // Update step count per revolution
                 steps_per_rev = avg;
@@ -92,19 +94,23 @@ int main() {
         }
         // run command: "run" or "run N"
         else if (strncmp(user_input, "run", 3) == 0) {
-            // If command is in form "run N"
-            if (validate_run_input(user_input)) {
-                // Parse numeric argument after "run "
-                const int num_out = get_nums_from_a_string(user_input + 4);
-                // Run only if N > 0
-                if (num_out > 0)
-                    run_motor(coil_pins, half_step, num_out, steps_per_rev);
-            }
-            // If command is plain "run" → rotate one full revolution (8 * 1/8)
-            else if (strlen(user_input) == 3) {
-                run_motor(coil_pins, half_step, 8, steps_per_rev);
+            if (avg > 0) {
+                // If command is in form "run N"
+                if (validate_run_input(user_input)) {
+                    // Parse numeric argument after "run "
+                    const int num_out = get_nums_from_a_string(user_input + 4);
+                    // Run only if N > 0
+                    if (num_out > 0)
+                        run_motor(coil_pins, half_step, num_out, steps_per_rev, &current_step);
+                }
+                // If command is plain "run" → rotate one full revolution (8 * 1/8)
+                else if (strlen(user_input) == 3) {
+                    run_motor(coil_pins, half_step, 8, steps_per_rev, &current_step);
+                }
             }
         }
+        else
+            printf("Invalid input\r\n");
     }
 }
 
@@ -125,7 +131,7 @@ void ini_sensor() {
     gpio_pull_up(SENSOR);
 }
 
-int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, int revolution_steps[3]) {
+int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, int revolution_steps[3], int *current_step) {
     int count = 0; // Number of falling edges detected
     int step = 0; // total half-steps taken
     int edge_step = 0; // Steps between consecutive edges (starts after first edge)
@@ -140,8 +146,10 @@ int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, i
         step++;
 
         // Start counting steps between edges after the first edge has been found
-        if (first_edge_found)
+        if (first_edge_found) {
             edge_step++;
+            *current_step += 1;
+        }
 
         const bool sensor_state = gpio_get(SENSOR);
         // Detect falling edge: HIGH -> LOW transition (no obstacle -> obstacle)
@@ -149,6 +157,7 @@ int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, i
             if (!first_edge_found) {
                 // First falling edge - start counting after this point
                 printf("First low edge found\r\n");
+                *current_step = 0;
                 first_edge_found = true;
             }
             else {
@@ -156,6 +165,8 @@ int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, i
                 revolution_steps[count-1] = edge_step;
                 printf("%d. round steps: %d\r\n", count, edge_step);
                 edge_step = 0;
+                //printf("Current step: %d\r\n", *current_step);
+                *current_step = 0;
             }
             count++;
         }
@@ -176,7 +187,7 @@ int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, i
 
 void step_motor(const uint *coil_pins, const int step, const int half_step[8][4]) {
     // Determines which step phase (0–7) the motor is currently in
-    // Bitwise AND preserves only the three lowest bits.
+    // Bitwise AND preserves only the three lowest bits
     const int phase = step & 7;
     for (int i = 0; i < INS_SIZE; i++) {
         gpio_put(coil_pins[i], half_step[phase][i]);
@@ -192,13 +203,20 @@ int get_avg(const int revolution_steps[3]) {
     return avg;
 }
 
-void run_motor(const uint *coil_pins, const int half_step[8][4], const int count, const int steps_per_rev) {
+void run_motor(const uint *coil_pins, const int half_step[8][4], const int count, const int steps_per_rev, int *current_step) {
     // Calculate total number of half-steps:
     const int i_count = count * (steps_per_rev / 8);
     for (int i = 0; i < i_count; i++) {
         step_motor(coil_pins, i, half_step);
+        if (*current_step < steps_per_rev)
+            *current_step += 1;
+        else
+            *current_step = 0;
         sleep_ms(3);
     }
+
+    if (*current_step >= steps_per_rev)
+        *current_step -= steps_per_rev;
 }
 
 char *handle_input() {

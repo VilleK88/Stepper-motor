@@ -177,10 +177,6 @@ int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, i
 void step_motor(const uint *coil_pins, const int step, const int half_step[8][4]) {
     // Determines which step phase (0–7) the motor is currently in
     // Bitwise AND preserves only the three lowest bits.
-    // This means that phase is always between 0 and 7.
-    // As step increases, phase cycles through 0–7 -> 0–7 -> 0–7…
-    // Each phase corresponds to one row in half_step[8][4]
-    // defining which coils (IN1–IN4) are energized at this moment.
     const int phase = step & 7;
     for (int i = 0; i < INS_SIZE; i++) {
         gpio_put(coil_pins[i], half_step[phase][i]);

@@ -145,8 +145,9 @@ int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, i
     bool prev_state = gpio_get(SENSOR); // true = no obstacle, false = obstacle
 
     do {
+        const int next_step = *current_step + 1;
         // Advance the motor by one half-step
-        step_motor(coil_pins, step, half_step, current_step);
+        step_motor(coil_pins, next_step, half_step, current_step);
         sleep_ms(3);
         step++;
 

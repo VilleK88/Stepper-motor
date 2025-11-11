@@ -29,7 +29,7 @@ void trim_line(char *user_input); // Remove '\n' and '\r' characters from the en
 bool check_if_nums(const char *string); // Return true if the string contains only digits (0–9)
 int get_nums_from_a_string(const char *string); // Extract digits from a string, form an integer (rejects leading zeros)
 bool validate_run_input(const char *user_input); // Validate that "run" command has a proper numeric argument ("run N")
-void invalid_input();
+void invalid_input(); // Print invalid input message
 
 int main() {
     // Stepper motor coil pins
@@ -68,13 +68,13 @@ int main() {
         // status command: print system state
         if (strcmp(user_input, "status") == 0) {
             if (avg > 0) {
-                // Calibration completed, display step count per revolution
+                // Calibration completed, display calibration information
                 printf("Calibrated: yes\r\n");
                 printf("Steps per revolution: %d\r\n", steps_per_rev);
                 printf("Current step: %d\r\n", current_step);
             }
             else {
-                // Calibration not yet performed
+                // Not yet calibrated
                 printf("Calibrated: no\r\n");
                 printf("Not available\r\n");
             }
@@ -93,23 +93,23 @@ int main() {
                 printf("Calibration failed\r\n");
             }
         }
-        // run command: "run" or "run N" if calibrated
+        // run command: "run" or "run N"
         else if (strncmp(user_input, "run", 3) == 0) {
+            // Calibration required before running
             if (avg > 0) {
                 // If command is in form "run N"
                 if (validate_run_input(user_input)) {
-                    // Parse numeric argument after "run "
+                    // Extract numeric argument from "run N"
                     const int num_out = get_nums_from_a_string(user_input + 4);
                     // Run only if N > 0
                     if (num_out > 0)
                         run_motor(coil_pins, half_step, num_out, steps_per_rev, &current_step);
                     else
-                        invalid_input();
+                        invalid_input(); // Nonpositive or invalid number
                 }
-                // If command is plain "run" → rotate one full revolution (8 * 1/8)
-                else if (strlen(user_input) == 3) {
+                // If command is plain "run" to rotate one full revolution (8 * 1/8)
+                else if (strlen(user_input) == 3)
                     run_motor(coil_pins, half_step, 8, steps_per_rev, &current_step);
-                }
             }
             else
                 printf("Calibrate first\r\n");
@@ -156,6 +156,7 @@ int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, i
         }
 
         const bool sensor_state = gpio_get(SENSOR);
+
         // Detect falling edge: HIGH -> LOW transition (no obstacle -> obstacle)
         if (prev_state && !sensor_state) {
             if (!first_edge_found) {
@@ -174,15 +175,15 @@ int calibrate(const uint *coil_pins, const int half_step[8][4], const int max, i
         // Stop after 4 falling edges (3 intervals) or reaching safety limit
         if (count >= 4 || step > max)
             continue_loop = false;
+
         prev_state = sensor_state;
 
     } while (continue_loop);
 
     // At least 4 edges are required to compute 3 intervals (1 revolution)
-    if (count >= 4) {
-        const int avg = get_avg(revolution_steps);
-        return avg;
-    }
+    if (count >= 4)
+        return get_avg(revolution_steps);
+
     return 0; // Calibration failed
 }
 
@@ -192,7 +193,7 @@ void step_motor(const uint *coil_pins, const int step, const int half_step[8][4]
     const int phase = step & 7;
     for (int i = 0; i < INS_SIZE; i++) {
         gpio_put(coil_pins[i], half_step[phase][i]);
-        *current_step = phase;
+        *current_step = phase; // Save current step phase
     }
 }
 

@@ -23,7 +23,7 @@ void ini_sensor(); // Initialize optical sensor input with internal pull-up
 int calibrate(int max, int revolution_steps[3]); // Measure steps per revolution using the optical sensor
 void step_motor(); // Perform one half-step of the stepper motor
 int get_avg(const int revolution_steps[3]); // Calculate the average of three revolution step counts
-void önrun_motor(int count, int steps_per_rev); // Run the motor for N * (1/8) revolutions using the calibrated steps per revolution
+void run_motor(int count, int steps_per_rev); // Run the motor for N * (1/8) revolutions using the calibrated steps per revolution
 char *handle_input(); // Read a single non-empty command from user input
 bool get_input(char *user_input); // Read a line from stdin, validate it, and remove newline characters
 void trim_line(char *user_input); // Remove '\n' and '\r' characters from the end of a string

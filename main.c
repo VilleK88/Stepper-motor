@@ -6,6 +6,9 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#define INPUT_LENGTH 200 // Maximum input line length
+#define SENSOR 28 // Optical sensor input with pull-up
+
 // Stepper motor control pins
 #define IN1 2
 #define IN2 3
@@ -13,12 +16,7 @@
 #define IN4 13
 #define INS_SIZE 4
 
-#define SENSOR 28 // Optical sensor input with pull-up
-
-#define INPUT_LENGTH 200 // Maximum input line length
-
-// Stepper motor coil pins
-static const uint coil_pins[] = {IN1, IN2, IN3, IN4};
+static const uint coil_pins[] = {IN1, IN2, IN3, IN4}; // Stepper motor control pins
 
 void ini_coil_pins(); // Initialize motor coil output pins as outputs
 void ini_sensor(); // Initialize optical sensor input with internal pull-up

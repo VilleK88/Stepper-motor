@@ -6,7 +6,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#define INPUT_LENGTH 200 // Maximum input line length
+#define INPUT_LENGTH 32 // Maximum input line length
 #define SENSOR 28 // Optical sensor input with pull-up
 
 // Stepper motor control pins
